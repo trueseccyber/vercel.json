@@ -12,18 +12,13 @@ export async function GET() {
 
     let html = await response.text();
 
-    const counterScript = `
-<script>
+    const injection = `<script>
 (function () {
   const ID = "ocr-live-counter";
-  let counter;
-  let placeholder;
-  let scheduled = false;
+  let queued = false;
 
-  function findPlaceholder() {
-    if (placeholder && placeholder.isConnected) {
-      return placeholder;
-    }
+  function findSlotText() {
+    if (!document.body) return null;
 
     const walker = document.createTreeWalker(
       document.body,
@@ -34,170 +29,213 @@ export async function GET() {
 
     while ((node = walker.nextNode())) {
       if (
-        node.nodeValue &&
-        /player\\s+counter\\s+slot/i.test(node.nodeValue)
-      ) {
-        placeholder = node.parentElement;
-        return placeholder;
+        !node.parentElement ||
+        node.parentElement.closest(
+          "script,style,noscript,#" + ID
+        )
+      ) continue;
+
+      const nodeRect =
+        node.parentElement.getBoundingClientRect();
+
+      if (!nodeRect.width || !nodeRect.height) {
+        continue;
+      }
+
+      const value = (node.nodeValue || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\\s+/g, " ");
+
+      if (value.includes("player counter slot")) {
+        return node.parentElement;
       }
     }
 
     return null;
   }
 
-  function getSlotBox(element) {
-    const text = element.getBoundingClientRect();
-    let parent = element;
+  function getPlacement() {
+    const pageWidth =
+      document.documentElement.clientWidth;
 
-    while (parent && parent !== document.body) {
-      const box = parent.getBoundingClientRect();
-      const ratio = box.width / Math.max(box.height, 1);
+    const slot = findSlotText();
 
-      if (
-        box.width >= text.width * 1.35 &&
-        box.height >= Math.max(40, text.height * 2.6) &&
-        box.width <= window.innerWidth * 0.8 &&
-        ratio >= 1.4 &&
-        ratio <= 2.7
+    if (slot) {
+      const textRect =
+        slot.getBoundingClientRect();
+
+      let element = slot.parentElement;
+
+      for (
+        let i = 0;
+        i < 5 && element;
+        i++, element = element.parentElement
       ) {
-        return box;
+        const rect =
+          element.getBoundingClientRect();
+
+        if (
+          rect.width > textRect.width * 1.4 &&
+          rect.height > textRect.height * 2.2 &&
+          rect.width <= pageWidth * 0.8 &&
+          rect.height < rect.width &&
+          rect.width / rect.height < 3.5
+        ) {
+          return rect;
+        }
       }
 
-      parent = parent.parentElement;
+      const width = Math.min(
+        pageWidth * (pageWidth < 700 ? 0.88 : 0.45),
+        850
+      );
+
+      const height = width * 0.58;
+
+      return {
+        left:
+          textRect.left +
+          textRect.width / 2 -
+          width / 2,
+        top:
+          textRect.top +
+          textRect.height / 2 -
+          height / 2,
+        width,
+        height
+      };
     }
 
-    const width = window.innerWidth < 700
-      ? window.innerWidth * 0.85
-      : window.innerWidth * 0.45;
+    const width = Math.min(
+      pageWidth * (pageWidth < 700 ? 0.88 : 0.45),
+      850
+    );
 
     const height = width * 0.58;
 
+    const pageHeight = Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight
+    );
+
     return {
-      left: text.left + text.width / 2 - width / 2,
-      top: text.top + text.height / 2 - height / 2,
-      width: width,
-      height: height
+      left: pageWidth * 0.05,
+      top: pageHeight * 0.84 - window.scrollY,
+      width,
+      height
     };
   }
 
-  function updatePosition() {
-    if (!counter) return;
+  function ensureCounter() {
+    if (!document.body) return null;
 
-    const target = findPlaceholder();
-    let x, y, width, height;
+    let host = document.getElementById(ID);
 
-    if (target) {
-      const box = getSlotBox(target);
+    if (!host) {
+      host = document.createElement("div");
+      host.id = ID;
 
-      width = box.width;
-      height = box.height;
+      host.style.cssText =
+        "position:absolute;" +
+        "z-index:2147483647;" +
+        "border:2px solid #ff902c;" +
+        "border-radius:18px;" +
+        "overflow:hidden;" +
+        "background:#151515;" +
+        "box-sizing:border-box";
 
-      x = box.left + window.scrollX;
-      y = box.top + window.scrollY;
+      const frame =
+        document.createElement("iframe");
 
-    } else {
-      width = window.innerWidth < 700
-        ? window.innerWidth * 0.85
-        : window.innerWidth * 0.45;
+      frame.src = "/counter.html";
+      frame.title = "Live Roblox Player Counter";
 
-      height = width * 0.58;
+      frame.style.cssText =
+        "display:block;" +
+        "width:100%;" +
+        "height:100%;" +
+        "border:0";
 
-      x = window.innerWidth * 0.05;
-      y = Math.max(
-        0,
-        document.documentElement.scrollHeight -
-        height - 180
-      );
+      host.appendChild(frame);
+      document.body.appendChild(host);
     }
 
-    x = Math.max(0, x);
-
-    Object.assign(counter.style, {
-      position: "absolute",
-      left: x + "px",
-      top: y + "px",
-      width: width + "px",
-      height: height + "px"
-    });
+    return host;
   }
 
-  function schedulePosition() {
-    if (scheduled) return;
+  function update() {
+    const host = ensureCounter();
+    if (!host) return;
 
-    scheduled = true;
+    const rect = getPlacement();
+
+    const x = Math.max(
+      0,
+      rect.left + window.scrollX
+    );
+
+    const y = Math.max(
+      0,
+      rect.top + window.scrollY
+    );
+
+    host.style.left = x + "px";
+    host.style.top = y + "px";
+    host.style.width = rect.width + "px";
+    host.style.height = rect.height + "px";
+  }
+
+  function schedule() {
+    if (queued) return;
+
+    queued = true;
 
     requestAnimationFrame(function () {
-      scheduled = false;
-      updatePosition();
+      queued = false;
+      update();
     });
   }
 
   function start() {
-    if (!document.body) return;
+    update();
 
-    counter = document.getElementById(ID);
+    window.addEventListener("resize", schedule);
+    window.addEventListener("load", schedule);
 
-    if (!counter) {
-      counter = document.createElement("div");
-      counter.id = ID;
-
-      Object.assign(counter.style, {
-        position: "absolute",
-        background: "#151515",
-        border: "2px solid #ff902c",
-        borderRadius: "18px",
-        overflow: "hidden",
-        zIndex: "2147483647"
-      });
-
-      const frame = document.createElement("iframe");
-      frame.src = "/counter.html";
-      frame.title = "Live Roblox Player Counter";
-
-      Object.assign(frame.style, {
-        width: "100%",
-        height: "100%",
-        border: "none",
-        display: "block"
-      });
-
-      counter.appendChild(frame);
-      document.body.appendChild(counter);
-    }
-
-    updatePosition();
-
-    window.addEventListener("resize", schedulePosition);
-    window.addEventListener("scroll", schedulePosition, {
-      passive: true
-    });
-    window.addEventListener("load", schedulePosition);
-
-    new MutationObserver(schedulePosition).observe(
-      document.body,
-      { childList: true, subtree: true }
+    new MutationObserver(schedule).observe(
+      document.documentElement,
+      {
+        childList: true,
+        subtree: true
+      }
     );
 
-    setTimeout(schedulePosition, 1000);
-    setTimeout(schedulePosition, 3000);
+    setTimeout(schedule, 1500);
+    setTimeout(schedule, 4000);
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", start);
+    document.addEventListener(
+      "DOMContentLoaded",
+      start,
+      { once: true }
+    );
   } else {
     start();
   }
 })();
 </script>`;
 
-    if (/<\\/head\\s*>/i.test(html)) {
-      html = html.replace(
-        /<\\/head\\s*>/i,
-        counterScript + "</head>"
-      );
-    } else {
-      html += counterScript;
-    }
+    const endHead = html
+      .toLowerCase()
+      .lastIndexOf("</head>");
+
+    html = endHead >= 0
+      ? html.slice(0, endHead) +
+        injection +
+        html.slice(endHead)
+      : html + injection;
 
     return new Response(html, {
       headers: {

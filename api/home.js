@@ -12,28 +12,74 @@ export async function GET() {
 
     let html = await response.text();
 
-    const counter = `
-<iframe
-  src="/counter.html"
-  title="Live Roblox Player Counter"
-  style="
-    position: absolute;
-    top: 226vw;
-    left: 5vw;
-    width: 45vw;
-    height: 26.5vw;
-    border: none;
-    background: transparent;
-    z-index: 2147483647;
-  "
-></iframe>
+    const counterScript = `
+<script>
+(function () {
+  function showCounter() {
+    if (!document.body) return;
 
-    `;
+    if (document.getElementById("ocr-live-counter")) {
+      return;
+    }
 
-    html = html.replace(
-      /<\/body>/i,
-      counter + "</body>"
+    const container = document.createElement("div");
+    container.id = "ocr-live-counter";
+
+    Object.assign(container.style, {
+      position: "fixed",
+      top: "80px",
+      right: "15px",
+      width: "min(400px, calc(100vw - 30px))",
+      height: "170px",
+      zIndex: "2147483647",
+      background: "#151515",
+      border: "2px solid #ff902c",
+      borderRadius: "18px",
+      overflow: "hidden"
+    });
+
+    const frame = document.createElement("iframe");
+    frame.src = "/counter.html";
+    frame.title = "Live Roblox Player Counter";
+
+    Object.assign(frame.style, {
+      width: "100%",
+      height: "100%",
+      border: "none",
+      display: "block"
+    });
+
+    container.appendChild(frame);
+    document.body.appendChild(container);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      showCounter
     );
+  } else {
+    showCounter();
+  }
+
+  new MutationObserver(showCounter).observe(
+    document.documentElement,
+    {
+      childList: true,
+      subtree: true
+    }
+  );
+})();
+</script>`;
+
+    if (/<\/head\s*>/i.test(html)) {
+      html = html.replace(
+        /<\/head\s*>/i,
+        counterScript + "</head>"
+      );
+    } else {
+      html += counterScript;
+    }
 
     return new Response(html, {
       headers: {

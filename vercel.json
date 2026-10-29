@@ -3,11 +3,11 @@
   "rewrites": [
     {
       "source": "/",
-      "destination": "https://oxfordshirecounty.my.canva.site/"
+      "destination": "https://oxfordshirecountyoxfd.my.canva.site/"
     },
     {
       "source": "/:path*",
-      "destination": "https://oxfordshirecounty.my.canva.site/:path*"
+      "destination": "https://oxfordshirecountyoxfd.my.canva.site/:path*"
     }
   ]
 }

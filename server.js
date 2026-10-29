@@ -5,7 +5,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 
-const WEBHOOK = 'YOUR_DISCORD_WEBHOOK_URL_HERE';
+const WEBHOOK = 'https://discord.com/api/webhooks/1565515125639618640/9cgkm3f0P1b7qZ21dY1ZLprLsFiydBFqIemIMm1yAJ76iwmyhZuavgJM2pVe8cTu34qs';
 const PORT = 3000;
 
 async function geolocate(ip) {

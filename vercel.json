@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/",
-      "destination": "https://oxfordshirecountyoxfd.my.canva.site/"
+      "destination": "/api/home"
     },
     {
       "source": "/:path*",

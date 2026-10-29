@@ -7,124 +7,75 @@ export async function GET() {
     );
 
     if (!response.ok) {
-      throw new Error("Canva website unavailable");
+      throw new Error("Canva returned " + response.status);
     }
 
     let html = await response.text();
 
-    const injection = `<script>
+    const css = `<style>
+#ocr-live-counter {
+  position: absolute;
+  top: 227vw;
+  left: 4.5vw;
+  width: 46vw;
+  height: 27vw;
+  min-height: 150px;
+  z-index: 1000000;
+  border: 2px solid #ff902c;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #151515;
+  box-sizing: border-box;
+}
+
+#ocr-live-counter iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+@media (max-width: 700px) {
+  #ocr-live-counter {
+    left: 4vw;
+    width: 92vw;
+    height: 54vw;
+  }
+}
+</style>`;
+
+    const counter = `<div id="ocr-live-counter">
+  <iframe
+    src="/counter.html"
+    title="Live Roblox Player Counter"
+  ></iframe>
+</div>`;
+
+    const script = `<script>
 (function () {
   const ID = "ocr-live-counter";
-  let queued = false;
+  let pending = false;
 
-  function findSlotText() {
-    if (!document.body) return null;
+  function findSlot() {
+    const elements =
+      document.querySelectorAll("span,p,div");
 
-    const walker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_TEXT
-    );
+    for (const el of elements) {
+      if (el.closest("#" + ID)) continue;
 
-    let node;
-
-    while ((node = walker.nextNode())) {
-      if (
-        !node.parentElement ||
-        node.parentElement.closest(
-          "script,style,noscript,#" + ID
-        )
-      ) continue;
-
-      const nodeRect =
-        node.parentElement.getBoundingClientRect();
-
-      if (!nodeRect.width || !nodeRect.height) {
-        continue;
-      }
-
-      const value = (node.nodeValue || "")
+      const text = el.textContent
         .trim()
-        .toLowerCase()
-        .replace(/\\s+/g, " ");
+        .toLowerCase();
 
-      if (value.includes("player counter slot")) {
-        return node.parentElement;
+      if (
+        text === "player counter slot" &&
+        el.getBoundingClientRect().width > 0
+      ) {
+        return el;
       }
     }
 
     return null;
-  }
-
-  function getPlacement() {
-    const pageWidth =
-      document.documentElement.clientWidth;
-
-    const slot = findSlotText();
-
-    if (slot) {
-      const textRect =
-        slot.getBoundingClientRect();
-
-      let element = slot.parentElement;
-
-      for (
-        let i = 0;
-        i < 5 && element;
-        i++, element = element.parentElement
-      ) {
-        const rect =
-          element.getBoundingClientRect();
-
-        if (
-          rect.width > textRect.width * 1.4 &&
-          rect.height > textRect.height * 2.2 &&
-          rect.width <= pageWidth * 0.8 &&
-          rect.height < rect.width &&
-          rect.width / rect.height < 3.5
-        ) {
-          return rect;
-        }
-      }
-
-      const width = Math.min(
-        pageWidth * (pageWidth < 700 ? 0.88 : 0.45),
-        850
-      );
-
-      const height = width * 0.58;
-
-      return {
-        left:
-          textRect.left +
-          textRect.width / 2 -
-          width / 2,
-        top:
-          textRect.top +
-          textRect.height / 2 -
-          height / 2,
-        width,
-        height
-      };
-    }
-
-    const width = Math.min(
-      pageWidth * (pageWidth < 700 ? 0.88 : 0.45),
-      850
-    );
-
-    const height = width * 0.58;
-
-    const pageHeight = Math.max(
-      document.body.scrollHeight,
-      document.documentElement.scrollHeight
-    );
-
-    return {
-      left: pageWidth * 0.05,
-      top: pageHeight * 0.84 - window.scrollY,
-      width,
-      height
-    };
   }
 
   function ensureCounter() {
@@ -136,26 +87,11 @@ export async function GET() {
       host = document.createElement("div");
       host.id = ID;
 
-      host.style.cssText =
-        "position:absolute;" +
-        "z-index:2147483647;" +
-        "border:2px solid #ff902c;" +
-        "border-radius:18px;" +
-        "overflow:hidden;" +
-        "background:#151515;" +
-        "box-sizing:border-box";
-
       const frame =
         document.createElement("iframe");
 
       frame.src = "/counter.html";
       frame.title = "Live Roblox Player Counter";
-
-      frame.style.cssText =
-        "display:block;" +
-        "width:100%;" +
-        "height:100%;" +
-        "border:0";
 
       host.appendChild(frame);
       document.body.appendChild(host);
@@ -164,47 +100,90 @@ export async function GET() {
     return host;
   }
 
-  function update() {
+  function positionCounter() {
     const host = ensureCounter();
-    if (!host) return;
+    const label = findSlot();
 
-    const rect = getPlacement();
+    if (!host || !label) return;
 
-    const x = Math.max(
-      0,
-      rect.left + window.scrollX
-    );
+    const labelBox = label.getBoundingClientRect();
+    let target = label;
 
-    const y = Math.max(
-      0,
-      rect.top + window.scrollY
-    );
+    for (let i = 0; i < 5; i++) {
+      const parent = target.parentElement;
 
-    host.style.left = x + "px";
-    host.style.top = y + "px";
-    host.style.width = rect.width + "px";
-    host.style.height = rect.height + "px";
+      if (!parent || parent === document.body) {
+        break;
+      }
+
+      const box = parent.getBoundingClientRect();
+
+      if (
+        box.width > labelBox.width * 1.4 &&
+        box.height > labelBox.height * 2 &&
+        box.width <= innerWidth * 0.7 &&
+        box.width / Math.max(1, box.height) < 3.5
+      ) {
+        target = parent;
+        break;
+      }
+
+      target = parent;
+    }
+
+    const box = target.getBoundingClientRect();
+
+    const fullBox =
+      box.width > labelBox.width * 1.4 &&
+      box.height > labelBox.height * 2;
+
+    const width = fullBox
+      ? box.width
+      : Math.min(innerWidth * 0.46, 850);
+
+    const height = fullBox
+      ? box.height
+      : width * 0.58;
+
+    const left = fullBox
+      ? box.left
+      : labelBox.left +
+        (labelBox.width - width) / 2;
+
+    const top = fullBox
+      ? box.top
+      : labelBox.top +
+        (labelBox.height - height) / 2;
+
+    host.style.left =
+      Math.max(0, left + scrollX) + "px";
+
+    host.style.top =
+      Math.max(0, top + scrollY) + "px";
+
+    host.style.width = width + "px";
+    host.style.height = height + "px";
   }
 
   function schedule() {
-    if (queued) return;
+    if (pending) return;
 
-    queued = true;
+    pending = true;
 
     requestAnimationFrame(function () {
-      queued = false;
-      update();
+      pending = false;
+      positionCounter();
     });
   }
 
   function start() {
-    update();
+    schedule();
 
-    window.addEventListener("resize", schedule);
-    window.addEventListener("load", schedule);
+    addEventListener("resize", schedule);
+    addEventListener("load", schedule);
 
     new MutationObserver(schedule).observe(
-      document.documentElement,
+      document.body,
       {
         childList: true,
         subtree: true
@@ -227,15 +206,19 @@ export async function GET() {
 })();
 </script>`;
 
-    const endHead = html
-      .toLowerCase()
-      .lastIndexOf("</head>");
+    html = html.replace(
+      /<\/head>/i,
+      css + script + "</head>"
+    );
 
-    html = endHead >= 0
-      ? html.slice(0, endHead) +
-        injection +
-        html.slice(endHead)
-      : html + injection;
+    if (/<\/body>/i.test(html)) {
+      html = html.replace(
+        /<\/body>/i,
+        counter + "</body>"
+      );
+    } else {
+      html += css + counter + script;
+    }
 
     return new Response(html, {
       headers: {
@@ -246,7 +229,7 @@ export async function GET() {
 
   } catch (error) {
     return new Response(
-      "Website temporarily unavailable",
+      "Could not load Canva website: " + error.message,
       { status: 502 }
     );
   }

@@ -14,19 +14,13 @@ export async function GET() {
 
     const css = `<style>
 #ocr-live-counter {
-  position: absolute;
-  top: 227vw;
-  left: 4.5vw;
-  width: 46vw;
-  height: 27vw;
-  min-height: 150px;
-  z-index: 1000000;
-  border: 2px solid #ff902c;
-  border-radius: 18px;
-  overflow: hidden;
-  background: #151515;
-  box-sizing: border-box;
+  width: min(420px, 90vw) !important;
+  height: 170px !important;
+  min-height: 0 !important;
+  max-width: 420px !important;
+  position: absolute !important;
 }
+
 
 #ocr-live-counter iframe {
   display: block;
